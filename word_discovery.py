@@ -1,5 +1,7 @@
 #! -*- coding: utf-8 -*-
 
+import re
+import glob
 import struct
 import os
 import six
@@ -72,7 +74,7 @@ class KenlmNgrams:
                         yield s, n
                     else:
                         break
-        for s, n in Progress(ngrams(), 100000, desc=u'loading ngrams'):
+        for s, n in Progress(ngrams(), 100000, desc=u'加载ngrams中'):
             if n >= self.min_count:
                 self.total += n
                 c = [self.unpack('i', s[j*4: (j+1)*4]) for j in range(self.order)]
@@ -96,10 +98,10 @@ def count_ngrams(corpus_file, order, vocab_file, ngram_file, memory=0.5):
     """通过os.system调用Kenlm的count_ngrams来统计频数
     其中，memory是占用内存比例，理论上不能超过可用内存比例。
     """
-    done = os.system(
-        './count_ngrams -o %s --memory=%d%% --write_vocab_list %s <%s >%s'
-        % (order, memory * 100, vocab_file, corpus_file, ngram_file)
-    )
+    command = './count_ngrams -o %s --memory=%d%% --write_vocab_list %s <%s >%s'% (order, memory * 100, vocab_file, corpus_file, ngram_file)
+    print(f"命令是:")
+    print(command)
+    done = os.system(command)
     if done != 0:
         raise ValueError('Failed to count ngrams by KenLM.')
 
@@ -176,51 +178,50 @@ def filter_vocab(candidates, ngrams, order):
                 result[i] = j
     return result
 
-
-# ======= 算法构建完毕，下面开始执行完整的构建词库流程 =======
-
-import re
-import glob
-
-# 语料生成器，并且初步预处理语料
-# 这个生成器例子的具体含义不重要，只需要知道它就是逐句地把文本yield出来就行了
 def text_generator():
     txts = glob.glob('/root/thuctc/THUCNews/*/*.txt')
     for txt in txts:
         d = codecs.open(txt, encoding='utf-8').read()
         d = d.replace(u'\u3000', ' ').strip()
         yield re.sub(u'[^\u4e00-\u9fa50-9a-zA-Z ]+', '\n', d)
+def thuc_data():
+    min_count = 32
+    order = 4
+    corpus_file = 'thucnews.corpus'  # 语料保存的文件名
+    vocab_file = 'thucnews.chars'  # 字符集保存的文件名
+    ngram_file = 'thucnews.ngrams'  # ngram集保存的文件名
+    output_file = 'thucnews.vocab'  # 最后导出的词表文件名
+    memory = 0.5  # memory是占用内存比例，理论上不能超过可用内存比例
+
+    write_corpus(text_generator(), corpus_file)  # 将语料转存为文本
+    count_ngrams(corpus_file, order, vocab_file, ngram_file, memory)  # 用Kenlm统计ngram
+    ngrams = KenlmNgrams(vocab_file, ngram_file, order, min_count)  # 加载ngram
+    ngrams = filter_ngrams(ngrams.ngrams, ngrams.total, [0, 2, 4, 6])  # 过滤ngram
+    ngtrie = SimpleTrie()  # 构建ngram的Trie树
+
+    for w in Progress(ngrams, 100000, desc=u'build ngram trie'):
+        _ = ngtrie.add_word(w)
+
+    candidates = {}  # 得到候选词
+    for t in Progress(text_generator(), 1000, desc='discovering words'):
+        for w in ngtrie.tokenize(t):  # 预分词
+            candidates[w] = candidates.get(w, 0) + 1
+
+    # 频数过滤
+    candidates = {i: j for i, j in candidates.items() if j >= min_count}
+    # 互信息过滤(回溯)
+    candidates = filter_vocab(candidates, ngrams, order)
+
+    # 输出结果文件
+    with codecs.open(output_file, 'w', encoding='utf-8') as f:
+        for i, j in sorted(candidates.items(), key=lambda s: -s[1]):
+            s = '%s %s\n' % (i, j)
+            f.write(s)
 
 
-min_count = 32
-order = 4
-corpus_file = 'thucnews.corpus' # 语料保存的文件名
-vocab_file = 'thucnews.chars' # 字符集保存的文件名
-ngram_file = 'thucnews.ngrams' # ngram集保存的文件名
-output_file = 'thucnews.vocab' # 最后导出的词表文件名
-memory = 0.5 # memory是占用内存比例，理论上不能超过可用内存比例
+if __name__ == '__main__':
+    # ======= 算法构建完毕，下面开始执行完整的构建词库流程 =======
+    # 语料生成器，并且初步预处理语料
+    # 这个生成器例子的具体含义不重要，只需要知道它就是逐句地把文本yield出来就行了
+    thuc_data()
 
-write_corpus(text_generator(), corpus_file) # 将语料转存为文本
-count_ngrams(corpus_file, order, vocab_file, ngram_file, memory) # 用Kenlm统计ngram
-ngrams = KenlmNgrams(vocab_file, ngram_file, order, min_count) # 加载ngram
-ngrams = filter_ngrams(ngrams.ngrams, ngrams.total, [0, 2, 4, 6]) # 过滤ngram
-ngtrie = SimpleTrie() # 构建ngram的Trie树
-
-for w in Progress(ngrams, 100000, desc=u'build ngram trie'):
-    _ = ngtrie.add_word(w)
-
-candidates = {} # 得到候选词
-for t in Progress(text_generator(), 1000, desc='discovering words'):
-    for w in ngtrie.tokenize(t): # 预分词
-        candidates[w] = candidates.get(w, 0) + 1
-
-# 频数过滤
-candidates = {i: j for i, j in candidates.items() if j >= min_count}
-# 互信息过滤(回溯)
-candidates = filter_vocab(candidates, ngrams, order)
-
-# 输出结果文件
-with codecs.open(output_file, 'w', encoding='utf-8') as f:
-    for i, j in sorted(candidates.items(), key=lambda s: -s[1]):
-        s = '%s %s\n' % (i, j)
-        f.write(s)

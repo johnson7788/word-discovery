@@ -13,7 +13,8 @@
 
 ## 使用
 
-使用前务必通过
+使用前务必通过, 参考kenlm进行编译自己系统的ngrams: https://github.com/kpu/kenlm/
+count_ngrams：默认是linux版本的
 ```
 chmod +x count_ngrams
 ```
