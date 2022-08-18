@@ -26,9 +26,9 @@ class Progress:
             self.steps = steps
         self.desc = desc
         if self.steps:
-            self._format_ = u'%s/%s passed' %('%s', self.steps)
+            self._format_ = u'%s/%s 进度' %('%s', self.steps)
         else:
-            self._format_ = u'%s passed'
+            self._format_ = u'%s 进度'
         if self.desc:
             self._format_ = self.desc + ' - ' + self._format_
         self.logger = logging.getLogger()
@@ -88,10 +88,14 @@ class KenlmNgrams:
 def write_corpus(texts, filename):
     """将语料写到文件中，词与词(字与字)之间用空格隔开
     """
+    # 统计行数
+    cnt = 0
     with codecs.open(filename, 'w', encoding='utf-8') as f:
         for s in Progress(texts, 10000, desc=u'exporting corpus'):
+            cnt += 1
             s = ' '.join(s) + '\n'
             f.write(s)
+    logging.info(f'{cnt} 行文件写入完成')
 
 
 def count_ngrams(corpus_file, order, vocab_file, ngram_file, memory=0.5):
@@ -99,8 +103,8 @@ def count_ngrams(corpus_file, order, vocab_file, ngram_file, memory=0.5):
     其中，memory是占用内存比例，理论上不能超过可用内存比例。
     """
     command = './count_ngrams -o %s --memory=%d%% --write_vocab_list %s <%s >%s'% (order, memory * 100, vocab_file, corpus_file, ngram_file)
-    print(f"命令是:")
-    print(command)
+    logging.info(f"命令是:")
+    logging.info(command)
     done = os.system(command)
     if done != 0:
         raise ValueError('Failed to count ngrams by KenLM.')
@@ -134,24 +138,26 @@ class SimpleTrie:
         self.dic = {}
         self.end = True
     def add_word(self, word):
-        _ = self.dic
+        temp_dict = self.dic
         for c in word:
-            if c not in _:
-                _[c] = {}
-            _ = _[c]
-        _[self.end] = word
+            if c not in temp_dict:
+                temp_dict[c] = {}
+            temp_dict = temp_dict[c]
+        temp_dict[self.end] = word
     def tokenize(self, sent): # 通过最长联接的方式来对句子进行分词
-        result = []
+        result = []  #eg: ['香味','淡淡的',..]
         start, end = 0, 1
-        for i, c1 in enumerate(sent):
-            _ = self.dic
+        if len(sent) > 1000:
+            logging.warning(f"注意：句子长度超过1000，可能会导致程序运行异常缓慢！,实际长度: {len(sent)}")
+        for i, c1 in enumerate(sent):  #c1是每个字
+            temp_dict = self.dic
             if i == end:
                 result.append(sent[start: end])
                 start, end = i, i+1
             for j, c2 in enumerate(sent[i:]):
-                if c2 in _:
-                    _ = _[c2]
-                    if self.end in _:
+                if c2 in temp_dict:
+                    temp_dict = temp_dict[c2]
+                    if self.end in temp_dict:
                         if i + j + 1 > end:
                             end = i + j + 1
                 else:

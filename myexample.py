@@ -12,6 +12,9 @@ import pandas as pd
 import numpy as np
 from myutils import CHANNEL, query_by_channel
 from word_discovery import Progress, write_corpus, count_ngrams, KenlmNgrams, filter_ngrams, SimpleTrie, filter_vocab
+import logging
+logging.basicConfig(level=logging.INFO, format=u'%(asctime)s - %(levelname)s - %(message)s')
+
 
 def get_and_save_data(data_dir="data", start='2021-12-01', end='2022-07-31', force_download=False):
     """
@@ -42,15 +45,24 @@ def get_and_save_data(data_dir="data", start='2021-12-01', end='2022-07-31', for
             df_data.to_csv(text_file, sep="\t", index=False, header=False, escapechar='|')
     return date_list
 
-def text_generator(data_dir="data"):
-    txts = glob.glob(f'{data_dir}/*/*.csv')
+def text_generator(data_dir="data", use_lines=False):
+    """
+    如果txt是一个大文件，那么请使用use_lines=True，如果是小文件，那么不介意了，
+    因为如果是大文件，文本过长，SimpleTrie的tokenize函数会循环过长，导致循环缓慢
+    param: use_lines: 每次返回是否使用是每行文件，还是一个单独的文件的所有内容
+    """
+    txts = glob.glob(f'{data_dir}/jd/*.csv')
     assert len(txts) > 0, "没有找到数据文件, 请检查文件"
     for txt in txts:
         d = codecs.open(txt, encoding='utf-8').read()
         d = d.replace(u'\u3000', ' ').strip()
         data = re.sub(u'[^\u4e00-\u9fa50-9a-zA-Z ]+', '\n', d)
-        yield data
-def my_data_discovery(save_dir="save"):
+        if use_lines:
+            for line in data.split('\n'):
+                yield line
+        else:
+            yield data
+def my_data_discovery(save_dir="save", use_cache=False):
     min_count = 32
     order = 4
     corpus_file = os.path.join(save_dir, 'mydata.corpus')  # 语料保存的文件名
@@ -61,18 +73,22 @@ def my_data_discovery(save_dir="save"):
     print(f"开始构建语料库，保存至{corpus_file}")
     # write_corpus(text_generator(), corpus_file)  # 将语料转存为文本
     print(f"开始计算ngram，保存至{ngram_file}")
-    count_ngrams(corpus_file, order, vocab_file, ngram_file, memory)  # 用Kenlm统计ngram
+    # count_ngrams(corpus_file, order, vocab_file, ngram_file, memory)  # 用Kenlm统计ngram
     print(f"加载由kelm构建好的ngram")
     ngrams = KenlmNgrams(vocab_file, ngram_file, order, min_count)  # 加载ngram
     print(f"互信息过滤ngrams")
     output_ngrams = filter_ngrams(ngrams.ngrams, ngrams.total, [0, 2, 4, 6])  # 过滤ngram
     ngtrie = SimpleTrie()  # 构建ngram的Trie树
-
-    for w in Progress(output_ngrams, 100000, desc=u'构建 ngram trie'):
-        _ = ngtrie.add_word(w)
-
+    print(f"构建ngram的Trie树")
+    for w in Progress(output_ngrams, 10000, desc=u'构建 ngram trie'):
+        # w 是每个词， eg: 'B5修复'
+        ngtrie.add_word(w)
+    print(f"最终ngram trie 构建的字典数量是: {len(ngtrie.dic)} 个")
+    print(f"开始发现新词")
     candidates = {}  # 得到候选词
-    for t in Progress(text_generator(), 1000, desc='发现新词中'):
+    for t in Progress(text_generator(use_lines=True), 2, desc='发现新词中'):
+        if len(candidates) % 1000:
+            print(f"已经发现{len(candidates)}个候选新词")
         for w in ngtrie.tokenize(t):  # 预分词
             candidates[w] = candidates.get(w, 0) + 1
 
