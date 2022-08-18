@@ -64,7 +64,7 @@ def text_generator(data_dir="data", use_lines=False):
                 yield line
         else:
             yield data
-def my_word_discovery(data_dir="data/tmall", save_dir="save", use_cache=True, min_count=32, order=4, memory=0.6):
+def my_word_discovery(data_dir="data/tmall", output_vocab_name="tmall", save_dir="save", use_cache=True, min_count=32, order=4, memory=0.6):
     """
     利用自己数据测试新词发现功能
     :param save_dir: 保存词典的目录
@@ -73,11 +73,11 @@ def my_word_discovery(data_dir="data/tmall", save_dir="save", use_cache=True, mi
     :param order:
     :param memory: 使用kenlm时，内存使用的百分比，默认是0.5，即使用50%的内存
     """
-    corpus_file = os.path.join(save_dir, 'mydata.corpus')  # 语料保存的文件名
-    char_file = os.path.join(save_dir, 'mydata.chars')  # 字符集保存的文件名
-    ngram_file = os.path.join(save_dir, 'mydata.ngrams')  # ngram集保存的文件名
-    output_file = os.path.join(save_dir, 'mydata.vocab')  # 最后导出的词表文件名
-    candidates_file = os.path.join(save_dir, 'candidates.json')  # 候选的单词词表, 保存词和词频的字典
+    corpus_file = os.path.join(save_dir, f'{output_vocab_name}.corpus')  # 语料保存的文件名
+    char_file = os.path.join(save_dir, f'{output_vocab_name}.chars')  # 字符集保存的文件名
+    ngram_file = os.path.join(save_dir, f'{output_vocab_name}.ngrams')  # ngram集保存的文件名
+    output_file = os.path.join(save_dir, f"{output_vocab_name}.vocab")  # 最后导出的词表文件名
+    candidates_file = os.path.join(save_dir, f'{output_vocab_name}_candidates.json')  # 候选的单词词表, 保存词和词频的字典
     if use_cache and os.path.exists(corpus_file):
         logging.warning(f"注意：使用的缓存的语料库{corpus_file}，如果原始数据更新，请设置use_cache=False")
     else:
@@ -189,7 +189,7 @@ def merge_vocab(main_vocab, extra_vocab, output_file="save/merge.vocab"):
 
 if __name__ == '__main__':
     # get_and_save_data()
-    my_word_discovery(data_dir="data/tmall", use_cache=False)
+    my_word_discovery(data_dir="data/tmall", output_vocab_name="tmall", use_cache=False)
     # diff_two_vocab('save/mydata.vocab', 'save/news.vocab')
     # diff_two_vocab('save/wechat.vocab', 'save/news.vocab')
     # 合并same字典里面的词到universal字典里面，作为通用字典
