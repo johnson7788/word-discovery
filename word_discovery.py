@@ -102,7 +102,7 @@ def count_ngrams(corpus_file, order, vocab_file, ngram_file, memory=0.5):
     """通过os.system调用Kenlm的count_ngrams来统计频数
     其中，memory是占用内存比例，理论上不能超过可用内存比例。
     """
-    command = './count_ngrams -o %s --memory=%d%% --write_vocab_list %s <%s >%s'% (order, memory * 100, vocab_file, corpus_file, ngram_file)
+    command = './count_ngrams --order %s --memory=%d%% --write_vocab_list %s <%s >%s'% (order, memory * 100, vocab_file, corpus_file, ngram_file)
     logging.info(f"命令是:")
     logging.info(command)
     done = os.system(command)
@@ -169,6 +169,9 @@ class SimpleTrie:
 def filter_vocab(candidates, ngrams, order):
     """
     通过与ngrams对比，排除可能出来的不牢固的词汇(回溯)
+    :param candidates: 候选词汇列表
+    :param ngrams: ngrams字典, 所有的词
+    :param order: ngrams的长度
     """
     result = {}
     for i, j in candidates.items():
