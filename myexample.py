@@ -9,6 +9,7 @@ import glob
 import re
 import codecs
 import pandas as pd
+from tqdm import tqdm
 import numpy as np
 from myutils import CHANNEL, query_by_channel
 from word_discovery import Progress, write_corpus, count_ngrams, KenlmNgrams, filter_ngrams, SimpleTrie, filter_vocab
@@ -53,7 +54,7 @@ def text_generator(data_dir="data", use_lines=False):
     """
     txts = glob.glob(f'{data_dir}/jd/*.csv')
     assert len(txts) > 0, "没有找到数据文件, 请检查文件"
-    for txt in txts:
+    for txt in tqdm(txts, desc="读取txts数据"):
         d = codecs.open(txt, encoding='utf-8').read()
         d = d.replace(u'\u3000', ' ').strip()
         data = re.sub(u'[^\u4e00-\u9fa50-9a-zA-Z ]+', '\n', d)
@@ -62,20 +63,31 @@ def text_generator(data_dir="data", use_lines=False):
                 yield line
         else:
             yield data
-def my_data_discovery(save_dir="save", use_cache=False):
-    min_count = 32
-    order = 4
+def my_word_discovery(save_dir="save", use_cache=True, min_count=32, order=4, memory=0.6):
+    """
+    利用自己数据测试新词发现功能
+    :param save_dir: 保存词典的目录
+    :param use_cache:
+    :param min_count: 单词最少出现的次数
+    :param order:
+    :param memory: 使用kenlm时，内存使用的百分比，默认是0.5，即使用50%的内存
+    """
     corpus_file = os.path.join(save_dir, 'mydata.corpus')  # 语料保存的文件名
-    vocab_file = os.path.join(save_dir, 'mydata.chars')  # 字符集保存的文件名
+    char_file = os.path.join(save_dir, 'mydata.chars')  # 字符集保存的文件名
     ngram_file = os.path.join(save_dir, 'mydata.ngrams')  # ngram集保存的文件名
     output_file = os.path.join(save_dir, 'mydata.vocab')  # 最后导出的词表文件名
-    memory = 0.5  # memory是占用内存比例，理论上不能超过可用内存比例
-    print(f"开始构建语料库，保存至{corpus_file}")
-    # write_corpus(text_generator(), corpus_file)  # 将语料转存为文本
-    print(f"开始计算ngram，保存至{ngram_file}")
-    # count_ngrams(corpus_file, order, vocab_file, ngram_file, memory)  # 用Kenlm统计ngram
+    if use_cache and os.path.exists(corpus_file):
+        print(f"注意：使用的缓存的语料库{corpus_file}，如果原始数据更新，请设置use_cache=False")
+    else:
+        print(f"开始构建语料库，保存至{corpus_file}")
+        write_corpus(text_generator(), corpus_file)  # 将语料转存为文本
+    if use_cache and os.path.exists(char_file) and os.path.exists(ngram_file):
+        print(f"注意：使用的缓存的词表字符{char_file}和ngram文件{ngram_file}，如果原始数据更新，请设置use_cache=False")
+    else:
+        print(f"开始计算ngram，保存至{ngram_file}")
+        count_ngrams(corpus_file, order, char_file, ngram_file, memory)  # 用Kenlm统计ngram
     print(f"加载由kelm构建好的ngram")
-    ngrams = KenlmNgrams(vocab_file, ngram_file, order, min_count)  # 加载ngram
+    ngrams = KenlmNgrams(char_file, ngram_file, order, min_count)  # 加载ngram
     print(f"互信息过滤ngrams")
     output_ngrams = filter_ngrams(ngrams.ngrams, ngrams.total, [0, 2, 4, 6])  # 过滤ngram
     ngtrie = SimpleTrie()  # 构建ngram的Trie树
@@ -84,7 +96,7 @@ def my_data_discovery(save_dir="save", use_cache=False):
         # w 是每个词， eg: 'B5修复'
         ngtrie.add_word(w)
     print(f"最终ngram trie 构建的字典数量是: {len(ngtrie.dic)} 个")
-    print(f"开始发现新词")
+    print(f"开始发现新词，预计耗时很久，很久")
     candidates = {}  # 得到候选词
     for t in Progress(text_generator(use_lines=True), 2, desc='发现新词中'):
         if len(candidates) % 1000:
@@ -106,4 +118,4 @@ def my_data_discovery(save_dir="save", use_cache=False):
 
 if __name__ == '__main__':
     # get_and_save_data()
-    my_data_discovery()
+    my_word_discovery(use_cache=True)

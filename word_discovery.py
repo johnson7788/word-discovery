@@ -167,7 +167,8 @@ class SimpleTrie:
 
 
 def filter_vocab(candidates, ngrams, order):
-    """通过与ngrams对比，排除可能出来的不牢固的词汇(回溯)
+    """
+    通过与ngrams对比，排除可能出来的不牢固的词汇(回溯)
     """
     result = {}
     for i, j in candidates.items():
