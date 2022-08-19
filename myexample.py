@@ -189,8 +189,8 @@ def merge_vocab(main_vocab, extra_vocab, output_file="save/merge.vocab"):
 
 if __name__ == '__main__':
     # get_and_save_data()
-    my_word_discovery(data_dir="data/tmall", output_vocab_name="tmall", use_cache=False)
-    # diff_two_vocab('save/mydata.vocab', 'save/news.vocab')
-    # diff_two_vocab('save/wechat.vocab', 'save/news.vocab')
+    my_word_discovery(data_dir="data/redbook", output_vocab_name="redbook", use_cache=False)
+    # diff_two_vocab('save/tiktok.vocab', 'save/news.vocab')
+    # diff_two_vocab('save/tmall.vocab', 'save/news.vocab')
     # 合并same字典里面的词到universal字典里面，作为通用字典
     # merge_vocab(main_vocab="save/universal.vocab", extra_vocab="save/same.vocab", output_file="save/universal.vocab")
